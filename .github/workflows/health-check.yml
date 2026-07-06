@@ -31,17 +31,16 @@ jobs:
           bash ./health-check.sh
       - name: setup git config
         run: |
-          # setup the username and email. I tend to use 'GitHub Actions Bot' with no email by default
+          # setup the username and email.
           git config user.name "GitHub Actions Bot"
-          git config user.email "<>"
+          git config user.email "actions@github.com"
 
       - name: commit
         run: |
           # Stage the file, commit and push
           git add -A --force logs/
-          git commit -am '[Automated] Update Health Check Logs'
-          git push origin main
-        
+          git commit -am '[Automated] Update Health Check Logs' || echo "No changes to commit"
+          git push origin main || echo "Push failed; check permissions"
 
   # Single deploy job since we're just deploying
   deploy:
@@ -53,13 +52,37 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
       - name: Setup Pages
         uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
+
+      - name: Prepare site artifact
+        run: |
+          rm -rf site
+          mkdir -p site
+          # Copy logs into site so Pages serves them
+          if [ -d logs ]; then
+            cp -r logs site/logs
+          fi
+          # Create a minimal index.html at the site root so Pages has an entrypoint
+          cat > site/index.html <<'EOF'
+          <!doctype html>
+          <html>
+          <head><meta charset="utf-8"><title>Health Check Logs</title></head>
+          <body>
+            <h1>Health Check Logs</h1>
+            <p>Browse the <a href="./logs/">logs directory</a>.</p>
+          </body>
+          </html>
+          EOF
+          # Prevent Jekyll processing if there are files with leading underscores
+          touch site/.nojekyll
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
-          # Upload entire repository
-          path: '.'
+          path: 'site'
+
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5.0.0
